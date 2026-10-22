@@ -5,5 +5,8 @@ this package makes all supported source types available.
 """
 
 from app.scripts.parsers.base import BaseParser, ParserFactory
+from app.scripts.parsers.api import APIParser
 
-__all__ = ["BaseParser", "ParserFactory"]
+ParserFactory.register("api", APIParser)
+
+__all__ = ["BaseParser", "ParserFactory", "APIParser"]
