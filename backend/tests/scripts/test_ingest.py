@@ -179,3 +179,21 @@ async def test_item_missing_required_field_is_counted_not_raised(db_session, moc
     assert run.items_failed == 1
     assert run.items_created == 0
     assert db_session.query(MCPServer).count() == 0
+
+
+@pytest.mark.asyncio
+async def test_missing_repository_url_falls_back_to_endpoint(db_session, mocker):
+    add_source(db_session, endpoint="https://registry.example/servers")
+    make_parser(
+        mocker,
+        [{"server": {}}],
+        [{"external_id": "com.example/a", "name": "A", "slug": "a"}],
+    )
+
+    run = await ingest_source("mcp_registry", db=db_session)
+
+    assert run.items_created == 1
+    server = db_session.query(MCPServer).one()
+    assert server.repository_url == (
+        "https://registry.example/servers/com.example/a"
+    )

@@ -155,8 +155,10 @@ def _normalize_item(parsed: dict, model: type, config: dict) -> dict:
         if not repository_url:
             if str(external_id).startswith(("http://", "https://")):
                 repository_url = str(external_id)
-            else:
-                raise ValueError("MCP server has no repository_url")
+            elif config.get("endpoint"):
+                repository_url = f"{config['endpoint']}/{external_id}"
+        if not repository_url:
+            raise ValueError("MCP server has no repository_url")
         item["repository_url"] = repository_url
         item["language"] = item.get("language") or "Other"
         try:
