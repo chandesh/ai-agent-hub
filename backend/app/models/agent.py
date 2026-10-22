@@ -63,6 +63,11 @@ class Agent(Base):
     featured = Column(Boolean, default=False, nullable=False, index=True)
     view_count = Column(Integer, default=0, nullable=False)
 
+    # Ingestion tracking
+    source = Column(String(32), nullable=True, index=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    external_id = Column(String(200), nullable=True, index=True)
+
     # Relationships
     category = relationship("Category", back_populates="agents")
     tags = relationship("Tag", secondary=agent_tags, back_populates="agents")
