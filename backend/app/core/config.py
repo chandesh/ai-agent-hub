@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # CORS - can be comma-separated string or list
     cors_origins: Union[List[str], str] = "http://localhost:4200,http://localhost:3000"
 
+    # Optional token for GitHub ingestion (5000 req/hr instead of 10/min)
+    github_token: str | None = None
+
     def get_cors_origins(self) -> List[str]:
         """Parse CORS origins from string or list"""
         if isinstance(self.cors_origins, str):

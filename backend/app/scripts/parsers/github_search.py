@@ -25,7 +25,12 @@ class GitHubSearchParser(BaseParser):
     def _headers(auth: dict | None) -> dict:
         headers = {"Accept": "application/vnd.github+json"}
         if auth and auth.get("type") == "bearer":
-            token = os.getenv(auth.get("env_var", "GITHUB_TOKEN"), "")
+            env_var = auth.get("env_var", "GITHUB_TOKEN")
+            token = os.getenv(env_var, "")
+            if not token and env_var == "GITHUB_TOKEN":
+                from app.core.config import settings
+
+                token = settings.github_token or ""
             if token:
                 headers["Authorization"] = f"Bearer {token}"
         return headers
