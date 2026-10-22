@@ -1,6 +1,6 @@
 """Seed the initial ingestion source configurations.
 
-Idempotent: sources that already exist (matched by name) are left untouched.
+Idempotent: existing sources (matched by name) are refreshed from SOURCE_CONFIGS.
 
 Usage (inside the backend container):
     python -m app.scripts.seed_sources
@@ -50,7 +50,7 @@ SOURCE_CONFIGS = [
                     "name": "server.title || server.name",
                     "slug": "server.name",
                     "description": "server.description || server.title || server.name",
-                    "repository_url": "server.repository.url",
+                    "repository_url": "server.repository.url || server.websiteUrl",
                     "npm_package": (
                         "server.packages[?(@.registryType=='npm')].identifier"
                     ),
@@ -92,7 +92,7 @@ SOURCE_CONFIGS = [
                 "item_path": "items",
                 "mappings": {
                     "name": "name",
-                    "slug": "name",
+                    "slug": "full_name",
                     "description": "description || name",
                     "repository_url": "html_url",
                     "language": "language || 'Other'",
@@ -130,7 +130,7 @@ SOURCE_CONFIGS = [
                 "item_path": "items",
                 "mappings": {
                     "name": "name",
-                    "slug": "name",
+                    "slug": "full_name",
                     "description": "description || name",
                     "website_url": "html_url",
                     "repository_url": "html_url",
@@ -179,12 +179,16 @@ def seed_sources(db: Session | None = None) -> None:
     owns_session = db is None
     db = db or SessionLocal()
     try:
-        existing = {name for (name,) in db.query(Source.name).all()}
+        existing = {source.name: source for source in db.query(Source).all()}
         for config in SOURCE_CONFIGS:
-            if config["name"] in existing:
+            source = existing.get(config["name"])
+            if source is None:
+                db.add(Source(**config))
+                logger.info("Seeding source %s", config["name"])
                 continue
-            db.add(Source(**config))
-            logger.info("Seeding source %s", config["name"])
+            source.display_name = config["display_name"]
+            source.type = config["type"]
+            source.config = config["config"]
         db.commit()
     finally:
         if owns_session:

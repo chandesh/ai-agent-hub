@@ -3,6 +3,7 @@
 import asyncio
 import os
 import random
+import time
 
 import httpx
 
@@ -16,6 +17,9 @@ class GitHubSearchParser(BaseParser):
         super().__init__(config)
         self.rate_limit = config.get("rate_limit", {})
         self._current_page: int | None = None
+        self._burst = max(1, self.rate_limit.get("burst", 1))
+        self._tokens = float(self._burst)
+        self._refilled_at: float | None = None
         self.client = httpx.AsyncClient(
             timeout=config.get("timeout_sec", 30.0),
             headers=self._headers(config.get("auth")),
@@ -43,6 +47,7 @@ class GitHubSearchParser(BaseParser):
         base_delay = self.rate_limit.get("base_delay_sec", 2)
 
         for attempt in range(max_retries + 1):
+            await self._acquire_slot()
             response = await self.client.get(self.config["endpoint"], params=params)
             remaining = response.headers.get("X-RateLimit-Remaining")
             if response.status_code == 429 or (
@@ -60,8 +65,37 @@ class GitHubSearchParser(BaseParser):
 
         raise RuntimeError("Max retries exceeded")
 
+    async def _acquire_slot(self) -> None:
+        rpm = self.rate_limit.get("requests_per_minute")
+        if not rpm:
+            return
+        rate = float(rpm) / 60.0
+        now = time.monotonic()
+        if self._refilled_at is None:
+            self._refilled_at = now
+        self._tokens = min(
+            self._burst, self._tokens + (now - self._refilled_at) * rate
+        )
+        self._refilled_at = now
+        if self._tokens < 1:
+            await asyncio.sleep((1 - self._tokens) / rate)
+            now = time.monotonic()
+            self._tokens = min(
+                self._burst, self._tokens + (now - self._refilled_at) * rate
+            )
+            self._refilled_at = now
+        self._tokens -= 1
+
     def has_next_page(self, response: dict) -> bool:
-        return len(response.get("items", [])) > 0
+        items = response.get("items", [])
+        if not items:
+            return False
+        per_page = int(self.config.get("params", {}).get("per_page", 30))
+        total = response.get("total_count")
+        if total is None:
+            return len(items) > 0
+        page = self._current_page or 1
+        return page * per_page < min(int(total), 1000)
 
     def next_page_token(self, response: dict) -> int:
         return (self._current_page or 1) + 1

@@ -197,3 +197,130 @@ async def test_missing_repository_url_falls_back_to_endpoint(db_session, mocker)
     assert server.repository_url == (
         "https://registry.example/servers/com.example/a"
     )
+
+
+@pytest.mark.asyncio
+async def test_same_name_repos_do_not_collapse(db_session, mocker):
+    add_source(db_session, name="github_mcp_topic", type_="github_search")
+    make_parser(
+        mocker,
+        [{"item": 1}, {"item": 2}],
+        [
+            {
+                "external_id": "alice/mcp-server",
+                "name": "mcp-server",
+                "slug": "alice-mcp-server",
+                "repository_url": "https://github.com/alice/mcp-server",
+                "language": "Python",
+            },
+            {
+                "external_id": "bob/mcp-server",
+                "name": "mcp-server",
+                "slug": "bob-mcp-server",
+                "repository_url": "https://github.com/bob/mcp-server",
+                "language": "Python",
+            },
+        ],
+    )
+
+    await ingest_source("github_mcp_topic", db=db_session)
+
+    assert db_session.query(MCPServer).count() == 2
+
+
+@pytest.mark.asyncio
+async def test_same_external_id_matches_despite_different_url(db_session, mocker):
+    add_source(db_session)
+    make_parser(
+        mocker,
+        [{"item": 1}, {"item": 2}],
+        [
+            {
+                "external_id": "shared/server",
+                "name": "Server",
+                "slug": "server-a",
+                "repository_url": "https://github.com/a/server",
+                "language": "Python",
+            },
+            {
+                "external_id": "shared/server",
+                "name": "Server Renamed",
+                "slug": "server-b",
+                "repository_url": "https://github.com/b/server",
+                "language": "Python",
+            },
+        ],
+    )
+
+    run = await ingest_source("mcp_registry", db=db_session)
+
+    assert db_session.query(MCPServer).count() == 1
+    assert run.items_created == 1
+    assert run.items_updated == 1
+    assert db_session.query(MCPServer).one().name == "Server Renamed"
+
+
+@pytest.mark.asyncio
+async def test_fetch_error_records_failed_run(db_session, mocker):
+    source = add_source(db_session)
+    parser = mocker.Mock()
+    parser.fetch_page = mocker.AsyncMock(side_effect=RuntimeError("boom"))
+    parser.get_items.return_value = []
+    parser.close = mocker.AsyncMock()
+    mocker.patch("app.scripts.ingest.ParserFactory.build", return_value=parser)
+
+    run = await ingest_source("mcp_registry", db=db_session)
+
+    db_session.refresh(source)
+    assert run.failed is True
+    assert "boom" in run.error_summary
+    assert source.status == "error"
+    assert db_session.query(IngestionRun).count() == 1
+
+
+@pytest.mark.asyncio
+async def test_successful_run_clears_error_status(db_session, mocker):
+    source = add_source(db_session)
+    source.status = "error"
+    source.last_error = "old failure"
+    db_session.commit()
+    make_parser(
+        mocker,
+        [{"server": {}}],
+        [
+            {
+                "external_id": "com.example/a",
+                "name": "A",
+                "slug": "a",
+                "repository_url": "https://github.com/example/a",
+                "language": "Python",
+            }
+        ],
+    )
+
+    await ingest_source("mcp_registry", db=db_session)
+
+    db_session.refresh(source)
+    assert source.status == "active"
+    assert source.last_error is None
+
+
+@pytest.mark.asyncio
+async def test_empty_response_marks_empty(db_session, mocker):
+    add_source(db_session)
+    make_parser(mocker, [], [])
+
+    run = await ingest_source("mcp_registry", db=db_session)
+
+    assert run.items_seen == 0
+    assert run.empty is True
+
+
+def test_order_sources_priority():
+    from app.scripts.ingest import _order_sources
+
+    ordered = _order_sources(
+        ["curated_catalog", "github_agents_topic", "mcp_registry"]
+    )
+
+    assert ordered == ["mcp_registry", "github_agents_topic", "curated_catalog"]

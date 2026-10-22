@@ -58,3 +58,35 @@ async def test_github_parser_tracks_page_token(httpx_mock):
 
 def test_github_parser_registered():
     assert isinstance(ParserFactory.build("github_search", CONFIG), GitHubSearchParser)
+
+
+def test_github_parser_stops_at_1000_result_cap():
+    parser = GitHubSearchParser(CONFIG)
+    parser._current_page = 10
+
+    assert parser.has_next_page({"items": [{"name": "a"}], "total_count": 5000}) is False
+    parser._current_page = 9
+    assert parser.has_next_page({"items": [{"name": "a"}], "total_count": 5000}) is True
+
+
+@pytest.mark.asyncio
+async def test_github_parser_respects_rate_limit(httpx_mock, mocker):
+    httpx_mock.add_response(json={"items": []})
+    httpx_mock.add_response(json={"items": []})
+    config = dict(CONFIG, rate_limit={
+        "max_retries": 0,
+        "base_delay_sec": 0,
+        "requests_per_minute": 60,
+        "burst": 1,
+    })
+    parser = GitHubSearchParser(config)
+    mocker.patch("app.scripts.parsers.github_search.time.monotonic", return_value=0.0)
+    sleep = mocker.patch(
+        "app.scripts.parsers.github_search.asyncio.sleep", new=mocker.AsyncMock()
+    )
+
+    await parser.fetch_page(1)
+    await parser.fetch_page(2)
+
+    assert sleep.await_count == 1
+    await parser.close()

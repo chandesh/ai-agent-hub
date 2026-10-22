@@ -11,13 +11,12 @@ import json
 import logging
 import re
 import sys
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.db.database import SessionLocal
+from app.db.database import SessionLocal, engine
 from app.models import (
     Agent,
     Category,
@@ -35,6 +34,12 @@ logger = logging.getLogger(__name__)
 
 ENTITY_MODELS = {"agent": Agent, "mcp_server": MCPServer}
 DEFAULT_ENTITY = {"api": "mcp_server", "github_search": "mcp_server", "curated": "agent"}
+SOURCE_PRIORITY = (
+    "mcp_registry",
+    "github_mcp_topic",
+    "github_agents_topic",
+    "curated_catalog",
+)
 
 MUTABLE_FIELDS = {
     "MCPServer": (
@@ -42,6 +47,7 @@ MUTABLE_FIELDS = {
         "description",
         "language",
         "scope",
+        "category_id",
         "npm_package",
         "pypi_package",
         "star_count",
@@ -83,18 +89,44 @@ def _slugify(value: str) -> str:
 
 def _find_existing(db: Session, model: type, item: dict) -> Any:
     url_field = _url_field(model)
-    candidates = (
-        (url_field, item.get(url_field)),
-        ("slug", item.get("slug")),
-        ("external_id", item.get("external_id")),
-    )
-    for field, value in candidates:
-        if not value:
-            continue
-        found = db.query(model).filter(getattr(model, field) == value).first()
+    if item.get(url_field) and not item.get("_synthetic_url"):
+        found = (
+            db.query(model).filter(getattr(model, url_field) == item[url_field]).first()
+        )
         if found is not None:
             return found
+
+    if item.get("slug"):
+        found = db.query(model).filter(model.slug == item["slug"]).first()
+        if found is not None:
+            item_external_id = item.get("external_id")
+            if not (
+                item_external_id
+                and found.external_id
+                and found.external_id != item_external_id
+            ):
+                return found
+
+    if item.get("external_id"):
+        return (
+            db.query(model)
+            .filter(model.external_id == item["external_id"])
+            .first()
+        )
     return None
+
+
+def _order_sources(names: list[str]) -> list[str]:
+    """Order sources so lower-priority data is written first."""
+    return sorted(
+        names,
+        key=lambda name: (
+            SOURCE_PRIORITY.index(name)
+            if name in SOURCE_PRIORITY
+            else len(SOURCE_PRIORITY),
+            name,
+        ),
+    )
 
 
 def _category_slug(item: dict, config: dict) -> str | None:
@@ -157,6 +189,7 @@ def _normalize_item(parsed: dict, model: type, config: dict) -> dict:
                 repository_url = str(external_id)
             elif config.get("endpoint"):
                 repository_url = f"{config['endpoint']}/{external_id}"
+                item["_synthetic_url"] = True
         if not repository_url:
             raise ValueError("MCP server has no repository_url")
         item["repository_url"] = repository_url
@@ -284,6 +317,7 @@ async def ingest_source(
         parser = ParserFactory.build(source.type, source.config)
 
         run = IngestionRun(source_id=source.id)
+        run.failed = False
         if dry_run:
             run.started_at = _now()
         else:
@@ -311,9 +345,12 @@ async def ingest_source(
                         "Schema version changed: "
                         f"{raw.get('server', {}).get('$schema')}"
                     )
-                    source.status = "error"
-                    source.last_error = reason
+                    if not dry_run:
+                        source.status = "error"
+                        source.last_error = reason
                     _record_error(run, reason)
+                    summary["errors"] += 1
+                    run.failed = True
                     raise SchemaMismatch(reason)
 
             if limit is not None and seen >= limit:
@@ -382,28 +419,41 @@ async def ingest_source(
                     page_token = parser.next_page_token(response)
         except SchemaMismatch:
             pass
+        except Exception as exc:  # noqa: BLE001 - record fetch failures, don't lose the run
+            logger.warning("Source %s fetch failed: %s", source.name, exc)
+            run.failed = True
+            summary["errors"] += 1
+            _record_error(run, f"fetch failed: {exc}")
+            if not dry_run:
+                source.status = "error"
+                source.last_error = str(exc)
 
+        if failed:
+            run.failed = True
+        if seen == 0:
+            logger.warning("Source %s returned no items", source.name)
+        run.empty = seen == 0
         run.items_seen = seen
         run.items_created = created
         run.items_updated = updated
         run.items_failed = failed
         run.finished_at = _now()
-
-        if not dry_run:
-            source.last_fetched_at = run.finished_at
-            source.last_fetched_count = seen
-            if source.status != "error" and failed:
-                _record_error(run, f"{failed} item(s) failed")
-            db.commit()
-            db.refresh(run)
-        else:
-            if source.status == "error":
-                db.rollback()
-                db.refresh(source)
-
         run.summary = summary
         run.dry_run = dry_run
         run.source_name = source.name
+
+        if dry_run:
+            return run
+
+        source.last_fetched_at = run.finished_at
+        source.last_fetched_count = seen
+        if not run.failed:
+            source.status = "active"
+            source.last_error = None
+        elif failed:
+            _record_error(run, f"{failed} item(s) failed")
+        db.commit()
+        db.refresh(run)
         return run
     finally:
         if parser is not None:
@@ -428,6 +478,8 @@ def _run_payload(run: IngestionRun) -> dict:
         "summary": {
             key: value for key, value in summary.items() if key != "items"
         },
+        "failed": getattr(run, "failed", False),
+        "empty": getattr(run, "empty", False),
         "counts": {
             "seen": run.items_seen,
             "created": run.items_created,
@@ -454,9 +506,18 @@ async def _main_async(args: argparse.Namespace) -> int:
     db = SessionLocal()
     try:
         if args.all:
-            sources = [
-                row.name for row in db.query(Source).filter(Source.status == "active")
-            ]
+            sources = _order_sources(
+                [
+                    row.name
+                    for row in db.query(Source).filter(Source.status == "active")
+                ]
+            )
+            if not sources:
+                print(
+                    "No active sources configured; run `make seed-sources`.",
+                    file=sys.stderr,
+                )
+                return 1
         else:
             sources = args.source or ["mcp_registry", "github_mcp_topic"]
     finally:
@@ -477,6 +538,8 @@ async def _main_async(args: argparse.Namespace) -> int:
             print(f"{source_name}: ERROR {exc}", file=sys.stderr)
             continue
 
+        if run.failed:
+            failures += 1
         if args.output == "json":
             payloads.append(_run_payload(run))
         else:
@@ -506,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
+    engine.echo = False
     return asyncio.run(_main_async(args))
 
 

@@ -25,3 +25,21 @@ def test_seed_sources_have_required_config():
     assert by_name["mcp_registry"]["config"]["entity"] == "mcp_server"
     assert by_name["github_agents_topic"]["config"]["entity"] == "agent"
     assert by_name["curated_catalog"]["type"] == "curated"
+
+
+def test_seed_sources_updates_existing_config(db_session):
+    db_session.add(
+        Source(
+            name="mcp_registry",
+            display_name="Stale name",
+            type="api",
+            config={"entity": "mcp_server"},
+        )
+    )
+    db_session.commit()
+
+    seed_sources(db=db_session)
+
+    source = db_session.query(Source).filter_by(name="mcp_registry").one()
+    assert source.display_name == "MCP Registry"
+    assert source.config["endpoint"].startswith("https://registry.modelcontextprotocol.io")

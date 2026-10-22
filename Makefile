@@ -213,20 +213,30 @@ populate-mcp:
 	docker exec ai_agent_hub_backend python app/scripts/populate_mcp_servers.py
 
 # Ingestion pipeline
+ARGS ?=
+
+seed-sources:
+	@echo "Seeding ingestion source configs..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.seed_sources
+
+backfill-existing:
+	@echo "Backfilling legacy row tracking columns..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.backfill_existing
+
 ingest:
-	@echo "Running all active ingestion sources..."
-	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all
+	@echo "Running all active ingestion sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all $(ARGS)
 
 ingest-mcp:
-	@echo "Ingesting MCP sources..."
-	docker exec ai_agent_hub_backend python -m app.scripts.ingest mcp_registry github_mcp_topic
+	@echo "Ingesting MCP sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest mcp_registry github_mcp_topic $(ARGS)
 
 ingest-agents:
-	@echo "Ingesting agent sources..."
-	docker exec ai_agent_hub_backend python -m app.scripts.ingest curated_catalog github_agents_topic
+	@echo "Ingesting agent sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest github_agents_topic curated_catalog $(ARGS)
 
 ingest-dry-run:
-	@echo "Dry-running all active ingestion sources..."
+	@echo "Dry-running all active ingestion sources (one page each)..." 1>&2
 	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all --dry-run --output json --limit 100
 
 # Deprecated aliases kept for backwards compatibility
