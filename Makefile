@@ -1,4 +1,4 @@
-.PHONY: help init build up down start stop restart logs clean rebuild db-only backend-only frontend-only ps shell-backend shell-db test npm-install npm-dev frontend-dev
+.PHONY: help init build up down start stop restart logs clean rebuild db-only backend-only frontend-only ps shell-backend shell-db test npm-install npm-dev frontend-dev ingest ingest-mcp ingest-agents ingest-dry-run
 
 # Auto-detect docker compose command (supports both v1 standalone and v2 plugin)
 DOCKER_COMPOSE := $(shell command -v docker-compose >/dev/null 2>&1 && echo "docker-compose" || echo "docker compose")
@@ -50,6 +50,12 @@ help:
 	@echo "  make db-create       - Create new migration"
 	@echo "  make db-seed         - Seed database with sample data"
 	@echo "  make populate-mcp    - Populate MCP servers data"
+	@echo ""
+	@echo "Ingestion:"
+	@echo "  make ingest          - Run all active ingestion sources"
+	@echo "  make ingest-mcp      - Ingest MCP Registry + GitHub MCP topic"
+	@echo "  make ingest-agents   - Ingest curated + GitHub agent topics"
+	@echo "  make ingest-dry-run  - Preview all sources without writing"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test            - Run backend tests"
@@ -206,13 +212,37 @@ populate-mcp:
 	@echo "Populating MCP servers data..."
 	docker exec ai_agent_hub_backend python app/scripts/populate_mcp_servers.py
 
-db-ingest-mcp:
-	@echo "Ingesting top MCP servers from GitHub..."
-	docker exec ai_agent_hub_backend python app/scripts/ingest_mcp_servers.py
+# Ingestion pipeline
+ARGS ?=
 
-db-ingest-agents:
-	@echo "Ingesting curated AI agent catalog..."
-	docker exec ai_agent_hub_backend python app/scripts/ingest_agents.py
+seed-sources:
+	@echo "Seeding ingestion source configs..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.seed_sources
+
+backfill-existing:
+	@echo "Backfilling legacy row tracking columns..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.backfill_existing
+
+ingest:
+	@echo "Running all active ingestion sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all $(ARGS)
+
+ingest-mcp:
+	@echo "Ingesting MCP sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest mcp_registry github_mcp_topic $(ARGS)
+
+ingest-agents:
+	@echo "Ingesting agent sources..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest github_agents_topic curated_catalog $(ARGS)
+
+ingest-dry-run:
+	@echo "Dry-running all active ingestion sources (one page each)..." 1>&2
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all --dry-run --output json --limit 100 $(ARGS)
+
+# Deprecated aliases kept for backwards compatibility
+db-ingest-mcp: ingest-mcp
+
+db-ingest-agents: ingest-agents
 
 # Testing
 test:

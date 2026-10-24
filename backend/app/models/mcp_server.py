@@ -69,6 +69,11 @@ class MCPServer(Base):
     featured = Column(Boolean, default=False, nullable=False, index=True)
     view_count = Column(Integer, default=0, nullable=False)
 
+    # Ingestion tracking
+    source = Column(String(32), nullable=True, index=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    external_id = Column(String(200), nullable=True, index=True)
+
     # Relationships
     category = relationship("Category", back_populates="mcp_servers")
     tags = relationship("Tag", secondary=mcp_server_tags, back_populates="mcp_servers")

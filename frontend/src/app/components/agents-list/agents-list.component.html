@@ -339,52 +339,18 @@
     </div>
 
     <!-- Pagination -->
-    <div *ngIf="!loading && !error && totalPages > 1 && !isGuestPreview" class="pagination-container">
-      <nav class="pagination-nav">
-        <!-- Previous Button -->
-        <button
-          (click)="onPageChange(currentPage - 1)"
-          [disabled]="currentPage === 1"
-          class="pagination-btn pagination-prev"
-          [class.disabled]="currentPage === 1"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
-          </svg>
-          <span class="pagination-label">Previous</span>
-        </button>
-        
-        <!-- Page Numbers -->
-        <div class="pagination-numbers">
-          <button
-            *ngFor="let page of [].constructor(totalPages); let i = index"
-            (click)="onPageChange(i + 1)"
-            class="pagination-number"
-            [class.active]="currentPage === i + 1"
-          >
-            {{ i + 1 }}
-          </button>
-        </div>
-
-        <!-- Next Button -->
-        <button
-          (click)="onPageChange(currentPage + 1)"
-          [disabled]="currentPage === totalPages"
-          class="pagination-btn pagination-next"
-          [class.disabled]="currentPage === totalPages"
-        >
-          <span class="pagination-label">Next</span>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-          </svg>
-        </button>
-      </nav>
-      
-      <!-- Page Info -->
-      <div class="page-info">
-        Page <strong>{{ currentPage }}</strong> of <strong>{{ totalPages }}</strong>
-      </div>
-    </div>
+    @if (!loading && !error && !isGuestPreview && showPagination) {
+      <app-pagination
+        class="pagination--agents"
+        [currentPage]="currentPage"
+        [totalPages]="totalPages"
+        [totalItems]="totalAgents"
+        [pageSize]="limit"
+        [showPageSize]="true"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      ></app-pagination>
+    }
   </main>
 
   <app-footer></app-footer>

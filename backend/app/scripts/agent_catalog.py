@@ -1,6 +1,6 @@
 """Curated catalog of additional AI agents for database enrichment.
 
-Each entry is a dict consumed by `ingest_agents.py`. Fields mirror the Agent
+Each entry is a dict consumed by the `curated_catalog` ingestion source. Fields mirror the Agent
 model: name, slug, description, short_description, website_url, logo_url,
 category (slug), pricing_model, tags (slug list), featured.
 

@@ -10,6 +10,7 @@ from app.models.mcp_server import MCPServer, ServerScope, mcp_server_tags
 from app.models.user import User, UserRole
 from app.models.favorite import UserFavorite
 from app.models.comparison import Comparison, ComparisonItem
+from app.models.source import IngestionRun, Source
 
 __all__ = [
     "Category",
@@ -25,4 +26,6 @@ __all__ = [
     "UserFavorite",
     "Comparison",
     "ComparisonItem",
+    "Source",
+    "IngestionRun",
 ]

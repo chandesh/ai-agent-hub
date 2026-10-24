@@ -1,0 +1,104 @@
+<nav class="pagination" aria-label="Pagination">
+  <div class="pagination__controls">
+    <button
+      type="button"
+      class="pg-btn pg-btn--icon"
+      [disabled]="currentPage() === 1"
+      (click)="go(1)"
+      aria-label="First page"
+      title="First page"
+    >
+      <svg class="pg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 6l-6 6 6 6M18 6l-6 6 6 6" />
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="pg-btn"
+      [disabled]="currentPage() === 1"
+      (click)="go(currentPage() - 1)"
+      aria-label="Previous page"
+    >
+      <svg class="pg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 6l-6 6 6 6" />
+      </svg>
+      <span class="pg-btn__label">Previous</span>
+    </button>
+
+    <ul class="pg-list">
+      @for (item of pages(); track $index) {
+        @if (item === 'ellipsis') {
+          <li class="pg-list__ellipsis" aria-hidden="true">…</li>
+        } @else {
+          <li>
+            <button
+              type="button"
+              class="pg-num"
+              [class.pg-num--active]="item === currentPage()"
+              [attr.aria-current]="item === currentPage() ? 'page' : null"
+              [attr.aria-label]="'Page ' + item"
+              (click)="go(item)"
+            >
+              {{ item }}
+            </button>
+          </li>
+        }
+      }
+    </ul>
+
+    <button
+      type="button"
+      class="pg-btn"
+      [disabled]="currentPage() === totalPages()"
+      (click)="go(currentPage() + 1)"
+      aria-label="Next page"
+    >
+      <span class="pg-btn__label">Next</span>
+      <svg class="pg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="pg-btn pg-btn--icon"
+      [disabled]="currentPage() === totalPages()"
+      (click)="go(totalPages())"
+      aria-label="Last page"
+      title="Last page"
+    >
+      <svg class="pg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 6l6 6-6 6M13 6l6 6-6 6" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="pagination__meta">
+    <span class="pg-range" aria-live="polite">
+      @if (totalItems() > 0) {
+        Showing <strong>{{ firstItem() }}–{{ lastItem() }}</strong> of
+        <strong>{{ totalItems() }}</strong>
+      } @else {
+        Page <strong>{{ currentPage() }}</strong> of <strong>{{ totalPages() }}</strong>
+      }
+    </span>
+
+    @if (showPageSize()) {
+      <label class="pg-size">
+        <span class="pg-size__label">Per page</span>
+        <select
+          class="pg-size__select"
+          (change)="onPageSizeChange($event)"
+          aria-label="Items per page"
+        >
+          @for (option of pageSizeOptions(); track option) {
+            <option [value]="option" [selected]="option === pageSize()">
+              {{ option }}
+            </option>
+          }
+        </select>
+      </label>
+    }
+  </div>
+</nav>

@@ -1,0 +1,171 @@
+:host {
+  display: block;
+  /* Theme hooks — override on the host element from the parent component. */
+  --pg-accent-from: var(--color-blue);
+  --pg-accent-to: var(--color-cyan);
+  --pg-accent-shadow: rgba(38, 139, 210, 0.3);
+}
+
+.pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 3rem;
+  padding: 1.5rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.pagination__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.pg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.pg-btn:hover:not(:disabled) {
+  border-color: var(--pg-accent-from);
+  background-color: var(--bg-highlight);
+}
+
+.pg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pg-btn:focus-visible,
+.pg-num:focus-visible,
+.pg-size__select:focus-visible {
+  outline: 2px solid var(--pg-accent-from);
+  outline-offset: 2px;
+}
+
+.pg-btn--icon {
+  padding: 0.6rem;
+}
+
+.pg-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.pg-list {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pg-num,
+.pg-list__ellipsis {
+  min-width: 2.6rem;
+  height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.pg-num {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.pg-num:hover {
+  border-color: var(--pg-accent-from);
+  background-color: var(--bg-highlight);
+}
+
+.pg-num--active,
+.pg-num--active:hover {
+  background: linear-gradient(135deg, var(--pg-accent-from), var(--pg-accent-to));
+  color: var(--color-base3);
+  border-color: transparent;
+  box-shadow: 0 4px 8px var(--pg-accent-shadow);
+}
+
+.pg-list__ellipsis {
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.pagination__meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.pg-range {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.pg-range strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.pg-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.pg-size__select {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .pg-list {
+    display: none;
+  }
+
+  .pg-btn__label {
+    display: none;
+  }
+
+  .pg-btn {
+    padding: 0.6rem;
+  }
+}

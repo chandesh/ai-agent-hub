@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     api_title: str = "AI Agent Hub API"
     api_version: str = "0.1.0"
     environment: str = "development"
@@ -18,9 +20,9 @@ class Settings(BaseSettings):
     
     # CORS - can be comma-separated string or list
     cors_origins: Union[List[str], str] = "http://localhost:4200,http://localhost:3000"
-    
-    class Config:
-        env_file = ".env"
+
+    # Optional token for GitHub ingestion (5000 req/hr instead of 10/min)
+    github_token: str | None = None
 
     def get_cors_origins(self) -> List[str]:
         """Parse CORS origins from string or list"""
