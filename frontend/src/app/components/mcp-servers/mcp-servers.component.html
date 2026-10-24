@@ -391,42 +391,18 @@
     </div>
 
     <!-- Pagination -->
-    <div *ngIf="!loading && !error && totalPages > 1 && !isGuestPreview" class="pagination-container">
-      <button
-        (click)="onPageChange(currentPage - 1)"
-        [disabled]="currentPage === 1"
-        class="pagination-button"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" d="M11.354 4.646a.5.5 0 010 .708L8.207 8.5l3.147 3.146a.5.5 0 01-.708.708l-3.5-3.5a.5.5 0 010-.708l3.5-3.5a.5.5 0 01.708 0z" clip-rule="evenodd"/>
-        </svg>
-        <span class="pagination-text">Previous</span>
-      </button>
-
-      <div class="pagination-pages">
-        <button
-          *ngFor="let page of getPageNumbers()"
-          (click)="onPageChange(page)"
-          [class.active]="currentPage === page"
-          class="pagination-page"
-        >
-          {{ page }}
-        </button>
-      </div>
-
-      <span class="pagination-info">Page {{ currentPage }} of {{ totalPages }}</span>
-
-      <button
-        (click)="onPageChange(currentPage + 1)"
-        [disabled]="currentPage === totalPages"
-        class="pagination-button"
-      >
-        <span class="pagination-text">Next</span>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" d="M4.646 4.646a.5.5 0 01.708 0L8.5 7.793l3.146-3.147a.5.5 0 01.708.708l-3.5 3.5a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 010-.708z" clip-rule="evenodd" transform="rotate(-90 8 8)"/>
-        </svg>
-      </button>
-    </div>
+    @if (!loading && !error && !isGuestPreview && showPagination) {
+      <app-pagination
+        class="pagination--mcp"
+        [currentPage]="currentPage"
+        [totalPages]="totalPages"
+        [totalItems]="totalServers"
+        [pageSize]="limit"
+        [showPageSize]="true"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      ></app-pagination>
+    }
   </main>
 
   <app-footer></app-footer>
