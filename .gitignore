@@ -35,5 +35,9 @@ Thumbs.db
 .env.docker
 .opencode/
 
+# Local tooling
+.codegraph/
+.understand-anything/
+
 # Visual companion mockups
 .superpowers/
