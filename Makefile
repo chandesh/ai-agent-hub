@@ -237,7 +237,7 @@ ingest-agents:
 
 ingest-dry-run:
 	@echo "Dry-running all active ingestion sources (one page each)..." 1>&2
-	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all --dry-run --output json --limit 100
+	docker exec ai_agent_hub_backend python -m app.scripts.ingest --all --dry-run --output json --limit 100 $(ARGS)
 
 # Deprecated aliases kept for backwards compatibility
 db-ingest-mcp: ingest-mcp

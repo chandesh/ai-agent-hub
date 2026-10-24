@@ -83,8 +83,8 @@ SOURCE_CONFIGS = [
             },
             "auth": {"type": "bearer", "env_var": "GITHUB_TOKEN"},
             "rate_limit": {
-                "requests_per_minute": 5000,
-                "burst": 10,
+                "requests_per_minute": 25,
+                "burst": 1,
                 "max_retries": 3,
                 "base_delay_sec": 2,
             },
@@ -121,8 +121,8 @@ SOURCE_CONFIGS = [
             },
             "auth": {"type": "bearer", "env_var": "GITHUB_TOKEN"},
             "rate_limit": {
-                "requests_per_minute": 5000,
-                "burst": 10,
+                "requests_per_minute": 25,
+                "burst": 1,
                 "max_retries": 3,
                 "base_delay_sec": 2,
             },

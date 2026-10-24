@@ -7,6 +7,7 @@ audit logging for every source.
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -85,6 +86,31 @@ def _url_field(model: type) -> str:
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
     return slug or "unnamed"
+
+
+def _unique_slug(db: Session, model: type, item: dict) -> str:
+    """Return a free slug, deterministically disambiguating collisions.
+
+    Distinct entities can slugify to the same value (e.g. GitHub repos
+    ``owner/a-b`` and ``owner/a_b``). ``slug`` is unique per table and capped
+    at 200 chars, so a colliding slug is suffixed with a digest of the item's
+    identity.
+    """
+    slug = item["slug"][:200]
+    if db.query(model).filter(model.slug == slug).first() is None:
+        return slug
+
+    key = "|".join(
+        str(item.get(field) or "")
+        for field in ("external_id", "repository_url", "website_url", "name")
+    )
+    digest = hashlib.sha1(key.encode()).hexdigest()
+    for length in (8, 16, len(digest)):
+        suffix = digest[:length]
+        candidate = f"{slug[: 200 - len(suffix) - 1]}-{suffix}"
+        if db.query(model).filter(model.slug == candidate).first() is None:
+            return candidate
+    raise ValueError(f"Could not find a free slug for {item.get('external_id')!r}")
 
 
 def _find_existing(db: Session, model: type, item: dict) -> Any:
@@ -284,6 +310,7 @@ def _upsert(
     if dry_run:
         return "created", clean
 
+    clean["slug"] = _unique_slug(db, model, clean)
     obj = model(**clean)
     db.add(obj)
     db.flush()
@@ -373,7 +400,15 @@ async def ingest_source(
                     )
                     return
 
-                action, detail = _upsert(db, model, item, source.config, dry_run)
+                if dry_run:
+                    action, detail = _upsert(
+                        db, model, item, source.config, dry_run=True
+                    )
+                else:
+                    with db.begin_nested():
+                        action, detail = _upsert(
+                            db, model, item, source.config, dry_run=False
+                        )
                 if dry_run:
                     summary[
                         "would_create" if action == "created" else "would_update"

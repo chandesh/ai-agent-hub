@@ -2,6 +2,7 @@
 
 import pytest
 
+import app.scripts.ingest as ingest_module
 from app.models import IngestionRun, MCPServer, Source
 from app.scripts.ingest import ingest_source
 
@@ -226,6 +227,88 @@ async def test_same_name_repos_do_not_collapse(db_session, mocker):
     await ingest_source("github_mcp_topic", db=db_session)
 
     assert db_session.query(MCPServer).count() == 2
+
+
+@pytest.mark.asyncio
+async def test_slug_collision_keeps_both_rows(db_session, mocker):
+    add_source(db_session, name="github_mcp_topic", type_="github_search")
+    make_parser(
+        mocker,
+        [{"item": 1}, {"item": 2}],
+        [
+            {
+                "external_id": "owner/a-b",
+                "name": "a-b",
+                "slug": "owner/a-b",
+                "repository_url": "https://github.com/owner/a-b",
+                "language": "Python",
+            },
+            {
+                "external_id": "owner/a_b",
+                "name": "a_b",
+                "slug": "owner/a_b",
+                "repository_url": "https://github.com/owner/a_b",
+                "language": "Python",
+            },
+        ],
+    )
+
+    run = await ingest_source("github_mcp_topic", db=db_session)
+
+    assert run.failed is False
+    assert run.items_created == 2
+    assert run.items_failed == 0
+    servers = db_session.query(MCPServer).all()
+    assert {server.external_id for server in servers} == {"owner/a-b", "owner/a_b"}
+    assert len({server.slug for server in servers}) == 2
+    assert db_session.query(IngestionRun).count() == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_item_rolls_back_only_its_savepoint(db_session, mocker):
+    add_source(db_session, name="github_mcp_topic", type_="github_search")
+    make_parser(
+        mocker,
+        [{"item": 1}, {"item": 2}],
+        [
+            {
+                "external_id": "owner/broken",
+                "name": "broken",
+                "slug": "owner/broken",
+                "repository_url": "https://github.com/owner/broken",
+                "language": "Python",
+            },
+            {
+                "external_id": "owner/ok",
+                "name": "ok",
+                "slug": "owner/ok",
+                "repository_url": "https://github.com/owner/ok",
+                "language": "Python",
+            },
+        ],
+    )
+
+    original_upsert = ingest_module._upsert
+    calls = 0
+
+    def flaky_upsert(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        result = original_upsert(*args, **kwargs)
+        if calls == 1:
+            raise RuntimeError("failed after flush")
+        return result
+
+    mocker.patch("app.scripts.ingest._upsert", side_effect=flaky_upsert)
+
+    run = await ingest_source("github_mcp_topic", db=db_session)
+
+    assert run.failed is True
+    assert run.items_created == 1
+    assert run.items_failed == 1
+    servers = db_session.query(MCPServer).all()
+    assert [server.external_id for server in servers] == ["owner/ok"]
+    assert db_session.query(IngestionRun).count() == 1
 
 
 @pytest.mark.asyncio
